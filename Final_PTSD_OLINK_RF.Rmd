@@ -1,0 +1,122 @@
+---
+title: "RF_Classification on Final_PTSD_OLINKPA_"
+author: "christine_odero"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+#clean global environment
+rm(list=ls())
+```
+
+
+```{r}
+#load necessary packages:
+library(randomForest)
+library(Matrix)
+library(readxl)
+library(stats)
+library(base)
+library(utils)
+library(class)
+library(caret)# for general data preparation and model fitting
+library(lattice)
+library(mlbench)
+library(ggplot2)
+library(pROC)
+```
+
+```{r}
+#set working directory
+getwd()
+setwd("/home/christineodero/Documents/project")
+
+```
+
+
+```{r}
+#upload data
+Final_PTSD_OLINKPA_rf <- read.csv("Final_PTSD_OLINKPA.txt" ,header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+```
+
+#check datatypes & show data structure
+```{r}
+output <- capture.output(str(Final_PTSD_OLINKPA_rf))
+head(output, 20)
+```
+
+```{r}
+dim(Final_PTSD_OLINKPA_rf)
+```
+
+
+```{r}
+# Remove the "..." and numbers from the row names
+# Define a function to remove digits following ellipses in a string
+remove_digits <- function(Final_PTSD_OLINKPA_rf) {
+  gsub("^(Neg|Pos).*", "\\1", Final_PTSD_OLINKPA_rf)
+}
+```
+
+
+```{r}
+# Apply the function to the column names
+colnames(Final_PTSD_OLINKPA_rf) <- lapply(colnames(Final_PTSD_OLINKPA_rf), remove_digits)
+```
+
+
+```{r}
+# Display column names
+colnames(Final_PTSD_OLINKPA_rf)
+```
+
+```{r}
+Status <- colnames(Final_PTSD_OLINKPA_rf)
+colnames(Final_PTSD_OLINKPA_rf) <- NULL
+Final_PTSD_OLINKPA_rf_1 <- t(Final_PTSD_OLINKPA_rf)
+Final_PTSD_OLINKPA_rf_1 <- as.data.frame(Final_PTSD_OLINKPA_rf_1)
+Final_PTSD_OLINKPA_rf_1 <- cbind(Status, Final_PTSD_OLINKPA_rf_1)
+Final_PTSD_OLINKPA_rf_1$Status <- as.factor(Final_PTSD_OLINKPA_rf_1$Status)
+```
+
+
+```{r}
+# Set the number of iterations for the loop
+num_iterations <-10
+# Vector to store the AUC values
+AUC <- numeric(num_iterations)
+set.seed(123)# For reproducibility
+for (i in 1:num_iterations) {
+  #Split the dataset into training and test sets
+  rfFuncs$summary <- twoClassSummary
+  training <- createDataPartition(Final_PTSD_OLINKPA_rf_1$Status, p = 0.8, list = FALSE)
+  # Separate predictors and target variable
+  test <- Final_PTSD_OLINKPA_rf_1[-training,]# Exclude the first column (target variable)
+  train <- Final_PTSD_OLINKPA_rf_1[training,]   # target variable
+  # Perform Recursive Feature Elimination (RFE) with Random Forest and ROC metric
+  control <- rfeControl(functions = rfFuncs, method = "repeatedcv",repeats=5, number = 10)
+  result <- rfe(Status~., data=train, sizes = 3:25, rfeControl = control,metric = "ROC")
+  # Train Random Forest model using selected features
+  selected_features <- predictors(result)
+  rf_model <- randomForest(Status ~ ., data = train[, c("Status", selected_features)])
+  test$probabilities <- predict(rf_model, newdata = test, type = "prob")[, "Pos"]
+  roc <- roc(test$Status, test$probabilities)
+  auc_value <- auc(roc)
+# Store the AUC value in the vector
+  AUC[i] <- auc_value
+}
+
+# Calculate the average AUC value
+average_auc <- mean(AUC)
+```
+
+
+```{r}
+average_auc
+```
+
+```{r}
+save.image(file = "RF_Clas_Final_PTSD_OLINKPA_.RData") #Saving the whole Global Environment 
+```
+
